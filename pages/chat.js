@@ -1,49 +1,66 @@
 import { Box, Text, TextField, Image, Button } from "@skynexui/components";
 import React from "react";
 import appConfig from "../config.json";
+import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
+import { ButtonSendSticker } from "../src/components/ButtonSendSticker";
 
 const supabase_anon_key =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTY0MzgxNzE0MywiZXhwIjoxOTU5MzkzMTQzfQ.XacQBFypWvam20PjJnCDZFH9q8rH5MswbR4QdufvUXc";
 const supabase_url = "https://txgttbruhwvkqzmucmls.supabase.co";
 const supabaseClient = createClient(supabase_url, supabase_anon_key);
 
+function verificaMensagemEmTempoReal(adicionaMensagem) {
+  return supabaseClient.from("mensagens").on("INSERT", (resposta) => {
+    adicionaMensagem(resposta.new);
+  });
+  subscribe();
+}
+
 export default function ChatPage() {
+  const router = useRouter();
+  const usuarioLogado = router.query.username;
   const [mensagem, setMensagem] = React.useState("");
   const [listaDeMensagens, setListaDeMensagens] = React.useState([]);
+
 
   React.useEffect(() => {
     supabaseClient
       .from("mensagens")
       .select("*")
-      .order('id', {ascending: false})
+      .order("id", { ascending: false })
       .then(({ data }) => {
         setListaDeMensagens(data);
       });
+
+     const subscription = verificaMensagemEmTempoReal((novaMensagem) => {
+      setListaDeMensagens((valorAtualLista) => {
+        return [novaMensagem, ...valorAtualLista];
+      });
+    });
+
+    return () => {
+      subscription.subscribe();
+    }
   }, []);
 
   function handleNovaMensagem(novaMensagem) {
     const mensagem = {
       // id: listaDeMensagens.length + 1,
-      de: "Renan-MA",
+      de: usuarioLogado,
       texto: novaMensagem,
     };
 
     supabaseClient
-    .from("mensagens")
-    .insert([
-      //tem que ser um objeto com os mesmos campos do supabase
-      mensagem
-    ])
+      .from("mensagens")
+      .insert([
+        //tem que ser um objeto com os mesmos campos do supabase
+        mensagem,
+      ])
 
-    .then(({ data }) => {
-      setListaDeMensagens([
-        data[0], 
-        ...listaDeMensagens
-        ]);
-      })
-      setMensagem("");
-    }
+      .then(({ data }) => {});
+    setMensagem("");
+  }
 
   return (
     <Box
@@ -87,12 +104,6 @@ export default function ChatPage() {
           }}
         >
           <MessageList mensagens={listaDeMensagens} />
-          {/* {listaDeMensagens.map((mensagemAtual) => {
-            return;
-            <li key={mensagemAtual.id}>
-              {mensagemAtual.de}: {mensagemAtual.texto}
-            </li>;
-          })} */}
 
           <Box
             as="form"
@@ -124,6 +135,11 @@ export default function ChatPage() {
                 backgroundColor: appConfig.theme.colors.neutrals[800],
                 marginRight: "12px",
                 color: appConfig.theme.colors.neutrals[200],
+              }}
+            />
+            <ButtonSendSticker
+              onStickerClick={(sticker) => {
+                handleNovaMensagem(":sticker: " + sticker);
               }}
             />
           </Box>
@@ -211,7 +227,12 @@ function MessageList(props) {
                 {new Date().toLocaleDateString()}
               </Text>
             </Box>
-            {mensagem.texto}
+
+            {mensagem.texto.startsWith(":sticker:") ? (
+              <Image src={mensagem.texto.replace(":sticker:", "")} />
+            ) : (
+              mensagem.texto
+            )}
           </Text>
         );
       })}
